@@ -20,3 +20,6 @@ alter table orders add column if not exists packing integer default 0;
 alter table products add column if not exists available boolean not null default true;
 alter table products add column if not exists stock integer;
 alter table orders add column if not exists stage text not null default 'received';
+alter table products add column if not exists pack boolean not null default true;
+create table if not exists offers(id serial primary key,product_id integer not null references products(id) on delete cascade,title text not null default 'Special offer',percent integer not null,start_date date,end_date date,weekdays text default '',active boolean not null default true);
+create table if not exists push_subs(id serial primary key,user_id integer references users(id) on delete cascade,endpoint text unique not null,p256dh text not null,auth text not null);

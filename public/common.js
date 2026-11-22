@@ -1,0 +1,15 @@
+const $=s=>document.querySelector(s),fmt=n=>'UGX '+Math.round(n).toLocaleString(),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PMN={cash:'Cash',mtn:'MTN MoMo',airtel:'Airtel Money',momo:'Mobile Money'},A={};
+const toast=m=>{const t=$('#toast');t.textContent=m;t.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>t.className='',3200)};
+const run=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message)}};
+async function api(p,m='GET',b){const t=getTok(),r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json',...(t?{Authorization:'Bearer '+t}:{})},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status==401&&t)onAuthFail();throw new Error(j.error||'Something went wrong')}return j}
+const pic=(id,em='🍽️',c='')=>id?`<img class="pic ${c}" src="/img/${id}" loading=lazy alt="">`:`<div class="pic ph ${c}">${em}</div>`;
+const shrink=(file,max,png)=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,max/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);res(c.toDataURL(png?'image/png':'image/jpeg',.82))};i.onerror=()=>rej(new Error('That file is not a valid image'));i.src=r.result};r.readAsDataURL(file)});
+const pick=(cb,o={})=>{const f=document.createElement('input');f.type='file';f.accept='image/*';f.onchange=run(async()=>{if(!f.files[0])return;toast('Uploading…');const{id}=await api('upload','POST',{data:await shrink(f.files[0],o.max||640,o.png)});await cb(id)});f.click()};
+function beep(){try{const c=new(window.AudioContext||webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.setValueAtTime(.25,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.7);o.start();o.stop(c.currentTime+.7)}catch{}}
+let PFX='';
+async function profileView(prefix,el){PFX=prefix;const u=await api(prefix);el.innerHTML=`<div class="card prof"><div class=ipic data-a=pfpic>${pic(u.avatar_id,'👤','round big')}<span>📷</span></div><h3>${esc(u.name)}</h3><small>${esc(u.email||u.phone)}</small><label>Your name</label><input id=pfn value="${esc(u.name)}"><button class=btn data-a=pfsave>Save profile</button><label>Change password</label><input id=pfc type=password placeholder="Current password"><input id=pfp type=password placeholder="New password"><button class="btn ghost" data-a=pfpw>Update password</button></div>`}
+Object.assign(A,{pfpic:()=>pick(async id=>{await api(PFX,'PUT',{avatar_id:id});toast('Photo updated ✓');onProfile()},{max:300}),
+pfsave:run(async()=>{await api(PFX,'PUT',{name:$('#pfn').value});toast('Saved ✓');onProfile()}),
+pfpw:run(async()=>{await api(PFX+'/password','POST',{current:$('#pfc').value,password:$('#pfp').value});$('#pfc').value=$('#pfp').value='';toast('Password changed ✓')})});
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t){e.preventDefault();A[t.dataset.a]?.(t.dataset.v)}});

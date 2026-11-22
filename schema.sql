@@ -17,3 +17,6 @@ alter table orders add column if not exists pay_pref text;
 alter table orders add column if not exists pay_ref text default '';
 alter table orders add column if not exists order_type text default 'dine_in';
 alter table orders add column if not exists packing integer default 0;
+alter table products add column if not exists available boolean not null default true;
+alter table products add column if not exists stock integer;
+alter table orders add column if not exists stage text not null default 'received';

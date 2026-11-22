@@ -19,7 +19,7 @@ app.post('/api/upload',any,W(async(q,r)=>{const m=/^data:image\/(jpeg|png|webp);
  const{rows:[x]}=await db.query('insert into images(mime,data) values($1,$2) returning id',['image/'+m[1],buf]);db.query(CLEAN).catch(()=>{});r.json({id:x.id})}));
 app.get('/img/:id',W(async(q,r)=>{const{rows:[x]}=await db.query('select mime,data from images where id=$1',[+q.params.id||0]);if(!x)return r.sendStatus(404);r.set({'Content-Type':x.mime,'Cache-Control':'public,max-age=31536000,immutable'}).send(x.data)}));
 app.get('/api/settings',W(async(q,r)=>r.json(await cfg())));
-app.put('/api/settings',auth('admin'),W(async(q,r)=>{for(const k of['name','address','phones','mtn','airtel','packing','logo'])if(q.body[k]!==undefined)await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do update set value=excluded.value',[k,String(q.body[k])]);r.json(await cfg())}));
+app.put('/api/settings',auth('admin'),W(async(q,r)=>{for(const k of['name','address','phones','mtn','airtel','packing','logo','hide_soldout'])if(q.body[k]!==undefined)await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do update set value=excluded.value',[k,String(q.body[k])]);r.json(await cfg())}));
 
 /* auth + profiles */
 app.post('/api/login',W(async(q,r)=>{const{rows:[u]}=await db.query('select * from users where lower(email)=lower($1)',[q.body.email||'']);
@@ -42,7 +42,7 @@ app.put('/api/categories/:id',auth('admin'),W(async(q,r)=>r.json((await db.query
 app.delete('/api/categories/:id',auth('admin'),W(async(q,r)=>{const{rows:[n]}=await db.query('select count(*)::int as n from products p join categories c on c.name=p.category where c.id=$1',[q.params.id]);
  if(n.n)return r.status(400).json({error:'This category still has items. Move or delete them first.'});await db.query('delete from categories where id=$1',[q.params.id]);r.json({ok:1})}));
 app.get('/api/products',auth(),W(async(q,r)=>r.json((await db.query('select * from products order by category,name')).rows)));
-app.get('/api/c/menu',W(async(q,r)=>r.json((await db.query('select id,name,category,price,image_id from products where active order by category,name')).rows)));
+app.get('/api/c/menu',W(async(q,r)=>{const h=(await cfg()).hide_soldout=='1';r.json((await db.query(`select id,name,category,price,image_id,available,stock from products where active ${h?'and available and (stock is null or stock>0)':''} order by category,name`)).rows)}));
 app.post('/api/products',auth('admin'),W(async(q,r)=>{const{name,category,price}=q.body;if(!name||!(+price>=0))return r.status(400).json({error:'Name and price required'});
  r.json((await db.query('insert into products(name,category,price) values($1,$2,$3) returning *',[name.trim(),(category||'General').trim(),Math.round(+price)])).rows[0])}));
 app.put('/api/products/:id',auth('admin'),W(async(q,r)=>{const{name,category,price,active,image_id}=q.body;
@@ -53,10 +53,13 @@ app.delete('/api/products/:id',auth('admin'),W(async(q,r)=>{await db.query('dele
 async function makeOrder(o){const{rows:ps}=await db.query('select * from products where id=any($1) and active',[(o.items||[]).map(i=>+i.id)]);
  const L=(o.items||[]).map(i=>{const p=ps.find(x=>x.id==i.id);return p&&{p,qty:Math.max(1,Math.min(99,+i.qty|0))}}).filter(Boolean);
  if(!L.length)throw Object.assign(new Error('Your cart is empty or the items are unavailable'),{code:400});
- const type=o.type=='takeaway'?'takeaway':'dine_in',pack=type=='takeaway'?(+(await cfg()).packing||0):0,total=L.reduce((s,l)=>s+l.p.price*l.qty,0)+pack,paid=!!o.pay&&PM.includes(o.method),c=await db.connect();
+ for(const l of L)if(!l.p.available||(l.p.stock!=null&&l.p.stock<l.qty))throw Object.assign(new Error(l.p.available&&l.p.stock>0?`Only ${l.p.stock} plate(s) of ${l.p.name} left`:`Sorry, ${l.p.name} is sold out`),{code:400});
+ const type=o.type=='takeaway'?'takeaway':'dine_in',plates=L.reduce((s,l)=>s+l.qty,0),pack=type=='takeaway'?(+(await cfg()).packing||0)*plates:0,total=L.reduce((s,l)=>s+l.p.price*l.qty,0)+pack,paid=!!o.pay&&PM.includes(o.method),c=await db.connect();
  try{await c.query('begin');
-  const{rows:[x]}=await c.query(`insert into orders(customer,phone,table_no,total,status,method,paid_at,user_id,customer_id,source,pay_pref,pay_ref,order_type,packing) values($1,$2,$3,$4,$5,$6,${paid?'now()':'null'},$7,$8,$9,$10,$11,$12,$13) returning *`,[(o.customer||'').trim()||'Walk-in',o.phone||'',(o.table||'').trim(),total,paid?'paid':'open',paid?o.method:null,o.user_id||null,o.customer_id||null,o.source||'pos',paid?null:(o.method||null),(o.ref||'').trim(),type,pack]);
-  for(const l of L)await c.query('insert into order_items(order_id,product_id,name,price,qty) values($1,$2,$3,$4,$5)',[x.id,l.p.id,l.p.name,l.p.price,l.qty]);
+  const{rows:[x]}=await c.query(`insert into orders(customer,phone,table_no,total,status,method,paid_at,user_id,customer_id,source,pay_pref,pay_ref,order_type,packing) values($1,$2,$3,$4,$5,$6,${paid?'now()':'null'},$7,$8,$9,$10,$11,$12,$13) returning *`,[(o.customer||'').trim()||'Walk-in',o.phone||'',(o.table||'').trim(),total,paid?'paid':'open',paid?o.method:null,o.user_id||null,o.customer_id||null,o.source||'pos',paid?null:(o.method||null),'',type,pack]);
+  for(const l of L){const u=await c.query('update products set stock=stock-$1 where id=$2 and available and (stock is null or stock>=$1) returning id',[l.qty,l.p.id]);
+   if(!u.rowCount)throw Object.assign(new Error(`Sorry, ${l.p.name} just ran out`),{code:400});
+   await c.query('insert into order_items(order_id,product_id,name,price,qty) values($1,$2,$3,$4,$5)',[x.id,l.p.id,l.p.name,l.p.price,l.qty])}
   await c.query('commit');return{...x,items:L.map(l=>({name:l.p.name,price:l.p.price,qty:l.qty}))}}
  catch(e){await c.query('rollback');throw e}finally{c.release()}}
 app.post('/api/orders',auth(),W(async(q,r)=>r.json(await makeOrder({...q.body,pay:true,user_id:q.user.id}))));
@@ -65,7 +68,11 @@ app.get('/api/orders',auth(),W(async(q,r)=>{const s=q.query.status;
 app.post('/api/orders/:id/pay',auth(),W(async(q,r)=>{if(!PM.includes(q.body.method))return r.status(400).json({error:'Choose a payment method'});
  const{rows:[o]}=await db.query("update orders set status='paid',method=$1,paid_at=now() where id=$2 and status='open' returning *",[q.body.method,q.params.id]);
  o?r.json(o):r.status(409).json({error:'Order is not open'})}));
-app.post('/api/orders/:id/cancel',auth(),W(async(q,r)=>{await db.query("update orders set status='cancelled' where id=$1 and status='open'",[q.params.id]);r.json({ok:1})}));
+
+const STAGES=['received','preparing','ready','delivering','done'];
+app.post('/api/orders/:id/stage',auth(),W(async(q,r)=>{if(!STAGES.includes(q.body.stage))return r.status(400).json({error:'Unknown stage'});r.json((await db.query("update orders set stage=$1 where id=$2 and status<>'cancelled' returning *",[q.body.stage,q.params.id])).rows[0]||{})}));
+app.put('/api/products/:id/stock',auth('admin'),W(async(q,r)=>{const s=q.body.stock===''||q.body.stock==null?null:Math.max(0,Math.round(+q.body.stock));r.json((await db.query('update products set available=$1,stock=$2 where id=$3 returning *',[q.body.available!==false,s,q.params.id])).rows[0])}));
+app.post('/api/orders/:id/cancel',auth(),W(async(q,r)=>{const u=await db.query("update orders set status='cancelled' where id=$1 and status='open' returning id",[q.params.id]);if(u.rowCount)await db.query('update products p set stock=p.stock+i.qty from order_items i where i.order_id=$1 and i.product_id=p.id and p.stock is not null',[q.params.id]);r.json({ok:1})}));
 
 /* customers */
 const ph=s=>String(s||'').replace(/[^\d+]/g,'');
@@ -78,10 +85,9 @@ app.post('/api/c/login',W(async(q,r)=>{const{rows:[u]}=await db.query('select * 
  if(!u||!bcrypt.compareSync(q.body.password||'',u.password_hash))return r.status(401).json({error:'Wrong phone number or password'});
  r.json({token:sign({id:u.id,role:'customer'}),user:{id:u.id,name:u.name,phone:u.phone,avatar_id:u.avatar_id}})}));
 app.post('/api/c/orders',auth('customer'),W(async(q,r)=>{const{rows:[u]}=await db.query('select id,name,phone from customers where id=$1',[q.user.id]);if(!u)return r.status(401).json({error:'Please sign in again'});
- const{items,method,ref,note,type}=q.body;if(!PM.includes(method))return r.status(400).json({error:'Choose how you will pay'});
- if(method!='cash'&&!(ref||'').trim())return r.status(400).json({error:'Enter your Mobile Money transaction ID'});
- r.json(await makeOrder({items,method,ref,type,customer:u.name,phone:u.phone,table:note,customer_id:u.id,source:'online'}))}));
-app.get('/api/c/orders',auth('customer'),W(async(q,r)=>r.json((await db.query(`select o.id,o.total,o.status,o.method,o.pay_pref,o.order_type,o.created_at,(select json_agg(json_build_object('name',i.name,'qty',i.qty)) from order_items i where i.order_id=o.id) as items from orders o where customer_id=$1 order by id desc limit 20`,[q.user.id])).rows)));
+ const{items,method,note,type}=q.body;if(!PM.includes(method))return r.status(400).json({error:'Choose how you will pay'});
+  r.json(await makeOrder({items,method,type,customer:u.name,phone:u.phone,table:note,customer_id:u.id,source:'online'}))}));
+app.get('/api/c/orders',auth('customer'),W(async(q,r)=>r.json((await db.query(`select o.id,o.total,o.status,o.method,o.pay_pref,o.order_type,o.stage,o.created_at,(select json_agg(json_build_object('name',i.name,'qty',i.qty)) from order_items i where i.order_id=o.id) as items from orders o where customer_id=$1 order by id desc limit 20`,[q.user.id])).rows)));
 
 /* reports + staff */
 app.get('/api/reports',auth('admin'),W(async(q,r)=>{const t=`status='paid' and ${PD}=${K}`;
@@ -98,7 +104,7 @@ app.post('/api/users',auth('admin'),W(async(q,r)=>{const{name,email,password,rol
 app.delete('/api/users/:id',auth('admin'),W(async(q,r)=>{if(+q.params.id===q.user.id)return r.status(400).json({error:'You cannot remove yourself'});await db.query('delete from users where id=$1',[q.params.id]);r.json({ok:1})}));
 
 (async()=>{await db.query(fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8'));
- for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',logo:''}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
+ for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',logo:'',hide_soldout:'0'}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
  if(!(await db.query('select 1 from users limit 1')).rows.length)await db.query("insert into users(name,email,password_hash,role) values('Admin',$1,$2,'admin')",[process.env.ADMIN_EMAIL||'admin@hometaste.local',bcrypt.hashSync(process.env.ADMIN_PASSWORD||'ChangeMe123',10)]);
  if(!(await db.query('select 1 from products limit 1')).rows.length)for(const[n,c,p]of[['Chicken & Chips','Meals',18000],['Beef Stew & Rice','Meals',12000],['Pilau','Meals',12000],['Matooke & G-nut Sauce','Meals',10000],['Burger','Fast Food',15000],['Chicken Wings','Fast Food',15000],['Rolex','Fast Food',3000],['Chips','Sides',5000],['Chapati','Sides',1000],['Fresh Juice','Drinks',4000],['Soda','Drinks',2000],['Tea','Drinks',2000]])await db.query('insert into products(name,category,price) values($1,$2,$3)',[n,c,p]);
  await db.query('insert into categories(name) select distinct category from products on conflict do nothing');

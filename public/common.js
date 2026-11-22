@@ -13,3 +13,9 @@ Object.assign(A,{pfpic:()=>pick(async id=>{await api(PFX,'PUT',{avatar_id:id});t
 pfsave:run(async()=>{await api(PFX,'PUT',{name:$('#pfn').value});toast('Saved ✓');onProfile()}),
 pfpw:run(async()=>{await api(PFX+'/password','POST',{current:$('#pfc').value,password:$('#pfp').value});$('#pfc').value=$('#pfp').value='';toast('Password changed ✓')})});
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t){e.preventDefault();A[t.dataset.a]?.(t.dataset.v)}});
+const STG=[['received','📝','Received'],['preparing','👩‍🍳','Preparing'],['ready','✅','Ready'],['delivering','🛵','On the way'],['done','🎉','Done']];
+const tracker=s=>{const i=STG.findIndex(x=>x[0]==s);return`<div class=trk>${STG.map((x,j)=>`<div class="st ${j<i?'ok':j==i?'now':''}"><i>${x[1]}</i><small>${x[2]}</small></div>`).join('')}</div>`};
+const soldout=p=>!p.available||(p.stock!=null&&p.stock<=0);
+const tile=p=>{const so=soldout(p);return`<button class="tile ${so?'so':''}" ${so?'disabled':`data-a=add data-v=${p.id}`}><div class=pw>${pic(p.image_id)}${so?'<span class=soldtag>Sold out</span>':p.stock!=null&&p.stock<=5?`<span class=lowtag>🔥 ${p.stock} left</span>`:''}</div><b>${esc(p.name)}</b><div class=pr><span>${fmt(p.price)}</span><i>+</i></div></button>`};
+const greet=()=>{const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening'};
+function confetti(){const e=['🎉','🍗','🍛','🥤','✨','🍔','🧡'];for(let i=0;i<30;i++){const s=document.createElement('span');s.className='cf';s.textContent=e[i%e.length];s.style.cssText=`left:${Math.random()*100}vw;animation-delay:${Math.random()*.7}s;font-size:${18+Math.random()*18}px`;document.body.appendChild(s);setTimeout(()=>s.remove(),3600)}}

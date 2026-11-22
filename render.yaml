@@ -16,3 +16,7 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: MOMO_NUMBER
+        sync: false
+      - key: MOMO_NAME
+        sync: false

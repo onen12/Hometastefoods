@@ -3,3 +3,9 @@ create table if not exists products(id serial primary key,name text not null,cat
 create table if not exists orders(id serial primary key,customer text default 'Walk-in',table_no text default '',total integer not null,status text not null default 'open',method text,user_id integer references users(id) on delete set null,created_at timestamptz default now(),paid_at timestamptz);
 create table if not exists order_items(id serial primary key,order_id integer not null references orders(id) on delete cascade,product_id integer references products(id) on delete set null,name text not null,price integer not null,qty integer not null);
 create index if not exists orders_status_idx on orders(status,paid_at);
+create table if not exists customers(id serial primary key,name text not null,phone text unique not null,password_hash text not null,created_at timestamptz default now());
+alter table orders add column if not exists phone text default '';
+alter table orders add column if not exists customer_id integer references customers(id) on delete set null;
+alter table orders add column if not exists source text default 'pos';
+alter table orders add column if not exists pay_pref text;
+alter table orders add column if not exists pay_ref text default '';

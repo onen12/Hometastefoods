@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Order · Home Taste Foods</title><link rel="stylesheet" href="/style.css">
+<style>.top{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--ink);color:#fff;gap:10px;flex-wrap:wrap}.top .logo{height:36px;display:inline-block;vertical-align:middle;margin-right:10px}.top button{background:none;color:#cfcab9;padding:8px}.wrap{max-width:1100px;margin:0 auto;padding:20px}.cbar{display:none}.info{background:#fff8e1;border-radius:10px;padding:10px;font-size:13px;margin:10px 0}.cart input{margin-top:8px}
+@media(max-width:860px){.cbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--brand);color:#fff;padding:15px 20px;justify-content:space-between;z-index:5;text-decoration:none}.wrap{padding:14px 14px 84px}}</style></head>
+<body><div id="root"></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),fmt=n=>'UGX '+Math.round(n).toLocaleString(),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const S={tok:localStorage.ctok||'',user:JSON.parse(localStorage.cuser||'null'),prods:[],info:{},cart:{},cat:'All',q:'',mode:'in',tab:'menu',method:'cash',note:'',ref:''};
+const LOGO=`<img class=logo src=/logo.png onerror="this.onerror=null;this.src='/logo.svg'" alt="Home Taste Foods">`;
+const toast=m=>{const t=$('#toast');t.textContent=m;t.className='show';setTimeout(()=>t.className='',2800)};
+async function api(p,m='GET',b){const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+S.tok},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status==401&&S.tok)A.out();throw new Error(j.error||'Something went wrong')}return j}
+const run=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message)}};
+const ST=o=>o.status=='paid'?['Paid ✓','paid']:o.status=='cancelled'?['Cancelled','cancelled']:[o.pay_pref=='momo'?'Confirming your payment':'Received · pay at the counter','open'];
+function render(){
+if(!S.user){$('#root').innerHTML=`<form class=login id=af>${LOGO}<h1>Home Taste Foods</h1><p>${S.mode=='in'?'Sign in to order':'Create your account'}</p>${S.mode=='up'?'<input id=nm placeholder="Your name" required>':''}<input id=ph type=tel placeholder="Phone number" required><input id=pw type=password placeholder="Password (6+ characters)" required><button class=btn>${S.mode=='in'?'Sign in':'Create account'}</button><small>${S.mode=='in'?'New here? <a href=# data-a=mode data-v=up>Create an account</a>':'Have an account? <a href=# data-a=mode data-v=in>Sign in</a>'}</small></form>`;return}
+$('#root').innerHTML=`<div class=top><span>${LOGO}<b>Hi, ${esc(S.user.name.split(' ')[0])}</b></span><span><button data-a=tab data-v=menu>Menu</button><button data-a=tab data-v=orders>My orders</button><button data-a=out>Sign out</button></span></div><div class=wrap id=main></div>`;
+run(async()=>{[S.prods,S.info]=await Promise.all([api('c/menu'),api('c/info')]);main()})()}
+function main(){if(S.tab=='orders')return orders();
+$('#main').innerHTML=`<div class=pos><section><input id=q placeholder="Search menu…" value="${esc(S.q)}"><div class=chips id=chips></div><div class=grid id=grid></div></section><aside class=cart id=cart></aside></div><a class=cbar href=#cart><span>View your order</span><b id=cbt></b></a>`;drawMenu();drawCart()}
+function drawMenu(){const cats=['All',...new Set(S.prods.map(p=>p.category))];
+$('#chips').innerHTML=cats.map(c=>`<button class="chip ${c==S.cat?'on':''}" data-a=cat data-v="${esc(c)}">${esc(c)}</button>`).join('');
+$('#grid').innerHTML=S.prods.filter(p=>(S.cat=='All'||p.category==S.cat)&&p.name.toLowerCase().includes(S.q.toLowerCase())).map(p=>`<button class=tile data-a=add data-v=${p.id}><b>${esc(p.name)}</b><span>${fmt(p.price)}</span></button>`).join('')||'<p class=empty>No items</p>'}
+function drawCart(){const L=Object.entries(S.cart).map(([id,q])=>({p:S.prods.find(x=>x.id==id),q})).filter(x=>x.p),T=L.reduce((s,x)=>s+x.p.price*x.q,0),m=S.method=='momo';
+if($('#cbt'))$('#cbt').textContent=fmt(T);
+$('#cart').innerHTML=`<h3>Your order</h3>${L.map(x=>`<div class=line><div><b>${esc(x.p.name)}</b><br><small>${fmt(x.p.price)}</small></div><div class=qty><button data-a=dec data-v=${x.p.id}>−</button><b>${x.q}</b><button data-a=add data-v=${x.p.id}>+</button></div></div>`).join('')||'<p class=empty>Tap a menu item to add it</p>'}<div class=tot><span>Total</span><b>${fmt(T)}</b></div>${L.length?`<input id=note placeholder="Table number or note (optional)" value="${esc(S.note)}"><h3 style="margin:14px 0 8px">Pay with</h3><div class=pay><button class="btn${m?' ghost':''}" data-a=method data-v=cash>💵 Cash</button><button class="btn${m?' mo':' ghost'}" data-a=method data-v=momo>📱 Mobile Money</button></div>${m?`<div class=info>Send <b>${fmt(T)}</b> to <b>${esc(S.info.momo||'our Mobile Money number (ask staff)')}</b> (${esc(S.info.momoName)}), then enter the transaction ID. Our staff will confirm your payment.</div><input id=ref placeholder="Transaction ID" value="${esc(S.ref)}">`:'<div class=info>You will pay with cash at the counter.</div>'}<button class=btn style="margin-top:10px" data-a=order>Place order</button>`:''}`}
+const orders=run(async()=>{const os=await api('c/orders');$('#main').innerHTML=`<div class=row><h2>My orders</h2><button class="sm ghost" data-a=tab data-v=orders>↻ Refresh</button></div><div class=ocards>${os.map(o=>{const[t,c]=ST(o);return`<div class=card><div class=row><b>Order #${o.id}</b><span class="badge ${c}">${t}</span></div><small>${new Date(o.created_at).toLocaleString()}</small><ul>${(o.items||[]).map(i=>`<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul><b>${fmt(o.total)}</b></div>`}).join('')||'<p class=empty>No orders yet</p>'}</div>`});
+const A={
+mode:v=>{S.mode=v;render()},
+out:()=>{localStorage.removeItem('ctok');localStorage.removeItem('cuser');S.tok='';S.user=null;S.cart={};render()},
+cat:v=>{S.cat=v;drawMenu()},add:v=>{S.cart[v]=(S.cart[v]||0)+1;drawCart()},dec:v=>{if(--S.cart[v]<=0)delete S.cart[v];drawCart()},
+tab:v=>{S.tab=v;main()},method:v=>{S.method=v;drawCart()},
+go:run(async()=>{const b={phone:$('#ph').value,password:$('#pw').value};if(S.mode=='up')b.name=$('#nm').value;const j=await api('c/'+(S.mode=='up'?'register':'login'),'POST',b);S.tok=localStorage.ctok=j.token;S.user=j.user;localStorage.cuser=JSON.stringify(j.user);render()}),
+order:run(async()=>{if(S.method=='momo'&&!S.ref.trim())throw new Error('Enter your Mobile Money transaction ID');await api('c/orders','POST',{items:Object.entries(S.cart).map(([id,qty])=>({id:+id,qty})),method:S.method,ref:S.ref,note:S.note});S.cart={};S.note=S.ref='';S.tab='orders';main();toast('Order placed ✓ Thank you!')})};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t){e.preventDefault();A[t.dataset.a](t.dataset.v)}});
+document.addEventListener('input',e=>{const i=e.target.id;if(i=='q'){S.q=e.target.value;drawMenu()}if(i=='note')S.note=e.target.value;if(i=='ref')S.ref=e.target.value});
+document.addEventListener('submit',e=>{e.preventDefault();A.go()});
+setInterval(()=>{if(S.user&&S.tab=='orders')orders()},15000);render();
+</script></body></html>

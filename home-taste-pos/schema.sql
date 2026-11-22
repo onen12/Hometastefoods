@@ -1,5 +1,0 @@
-create table if not exists users(id serial primary key,name text not null,email text unique not null,password_hash text not null,role text not null default 'cashier',created_at timestamptz default now());
-create table if not exists products(id serial primary key,name text not null,category text not null default 'General',price integer not null check(price>=0),active boolean not null default true);
-create table if not exists orders(id serial primary key,customer text default 'Walk-in',table_no text default '',total integer not null,status text not null default 'open',method text,user_id integer references users(id) on delete set null,created_at timestamptz default now(),paid_at timestamptz);
-create table if not exists order_items(id serial primary key,order_id integer not null references orders(id) on delete cascade,product_id integer references products(id) on delete set null,name text not null,price integer not null,qty integer not null);
-create index if not exists orders_status_idx on orders(status,paid_at);

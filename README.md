@@ -12,3 +12,13 @@
 4. Deploy, open the URL, sign in, then add cashiers under Staff and edit your real menu under Menu.
 
 Run locally: `DATABASE_URL=... ADMIN_EMAIL=you@mail.com ADMIN_PASSWORD=yourpass npm start`
+
+## Customer ordering
+Customers use `https://YOUR-APP.onrender.com/order` (create account with phone + password, order, pay Cash or Mobile Money).
+Add env vars `MOMO_NUMBER` and `MOMO_NAME` on Render so customers see where to send Mobile Money. Staff confirm payment in **Orders**.
+
+## Logo
+Upload your logo as `public/logo.png` (it replaces the placeholder `logo.svg` automatically).
+
+## 48mm thermal printer
+In the print dialog choose the thermal printer, paper size 48mm, Margins: None, Scale: 100%, and turn off Headers and footers.

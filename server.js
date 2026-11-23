@@ -16,7 +16,7 @@ const PSEL=`select p.*,o.title as offer_title,coalesce(o.percent,0) as offer_per
 let VAPID_PUB='';
 const pushAll=async p=>{const{rows}=await db.query('select * from push_subs');await Promise.all(rows.map(s=>webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth}},JSON.stringify(p),{TTL:90,urgency:'high'}).catch(e=>{if([404,410].includes(e.statusCode))return db.query('delete from push_subs where id=$1',[s.id])})))};
 function ringOrder(o){let n=0;const go=async()=>{try{const{rows:[x]}=await db.query('select stage,status from orders where id=$1',[o.id]);if(!x||x.stage!='received'||x.status=='cancelled'||n++>=5)return;
- await pushAll({title:`New order #${o.id}`,body:`${o.customer} - ${o.items.reduce((t,i)=>t+i.qty,0)} plate(s) - UGX ${Math.round(o.total).toLocaleString()}`,tag:'order-'+o.id,renotify:true,url:'/'});setTimeout(go,12000)}catch(e){console.error(e)}};go()}
+ await pushAll({title:`New order #${o.id}`,body:`${o.customer} - ${o.items.reduce((t,i)=>t+i.qty,0)} plate(s) - UGX ${Math.round(o.total).toLocaleString()}`,tag:'order-'+o.id,renotify:true,url:'/staff'});setTimeout(go,12000)}catch(e){console.error(e)}};go()}
 const CLEAN="delete from images where created_at<now()-interval '1 hour' and id not in (select image_id from products where image_id is not null union select image_id from categories where image_id is not null union select avatar_id from users where avatar_id is not null union select avatar_id from customers where avatar_id is not null union select value::int from settings where key='logo' and value~'^[0-9]+$')";
 
 /* images + settings */
@@ -25,7 +25,7 @@ app.post('/api/upload',any,W(async(q,r)=>{const m=/^data:image\/(jpeg|png|webp);
  const{rows:[x]}=await db.query('insert into images(mime,data) values($1,$2) returning id',['image/'+m[1],buf]);db.query(CLEAN).catch(()=>{});r.json({id:x.id})}));
 app.get('/img/:id',W(async(q,r)=>{const{rows:[x]}=await db.query('select mime,data from images where id=$1',[+q.params.id||0]);if(!x)return r.sendStatus(404);r.set({'Content-Type':x.mime,'Cache-Control':'public,max-age=31536000,immutable'}).send(x.data)}));
 app.get('/api/settings',W(async(q,r)=>r.json(pub(await cfg()))));
-app.put('/api/settings',auth('admin'),W(async(q,r)=>{for(const k of['name','address','phones','mtn','airtel','packing','logo','hide_soldout'])if(q.body[k]!==undefined)await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do update set value=excluded.value',[k,String(q.body[k])]);r.json(pub(await cfg()))}));
+app.put('/api/settings',auth('admin'),W(async(q,r)=>{for(const k of['name','address','phones','mtn','airtel','packing','momo_fee','logo','hide_soldout'])if(q.body[k]!==undefined)await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do update set value=excluded.value',[k,String(q.body[k])]);r.json(pub(await cfg()))}));
 
 /* auth + profiles */
 app.post('/api/login',W(async(q,r)=>{const{rows:[u]}=await db.query('select * from users where lower(email)=lower($1)',[q.body.email||'']);
@@ -50,7 +50,7 @@ app.delete('/api/categories/:id',auth('admin'),W(async(q,r)=>{const{rows:[n]}=aw
 app.get('/api/products',auth(),W(async(q,r)=>r.json((await db.query(PSEL+' order by p.category,p.name')).rows)));
 app.get('/api/c/menu',W(async(q,r)=>{const h=(await cfg()).hide_soldout=='1';r.json((await db.query(`select * from (${PSEL}) x where x.active ${h?'and x.available and (x.stock is null or x.stock>0)':''} order by x.category,x.name`)).rows)}));
 app.post('/api/products',auth('admin'),W(async(q,r)=>{const{name,category,price}=q.body;if(!name||!(+price>=0))return r.status(400).json({error:'Name and price required'});
- r.json((await db.query('insert into products(name,category,price,pack) values($1,$2,$3,$4) returning *',[name.trim(),(category||'General').trim(),Math.round(+price),!/soda|juice|water/i.test(name)])).rows[0])}));
+ r.json((await db.query('insert into products(name,category,price,pack) values($1,$2,$3,$4) returning *',[name.trim(),(category||'General').trim(),Math.round(+price),!/\b(sodas?|juices?|teas?|waters?)\b/i.test(name)])).rows[0])}));
 app.put('/api/products/:id',auth('admin'),W(async(q,r)=>{const{name,category,price,active,image_id,pack}=q.body;
  r.json((await db.query('update products set name=$1,category=$2,price=$3,active=$4,image_id=$5,pack=$6 where id=$7 returning *',[name,category,Math.round(+price),active!==false,image_id||null,pack!==false,q.params.id])).rows[0])}));
 app.delete('/api/products/:id',auth('admin'),W(async(q,r)=>{await db.query('delete from products where id=$1',[q.params.id]);r.json({ok:1})}));
@@ -60,9 +60,9 @@ async function makeOrder(o){const{rows:ps}=await db.query(`select * from (${PSEL
  const L=(o.items||[]).map(i=>{const p=ps.find(x=>x.id==i.id);return p&&{p,qty:Math.max(1,Math.min(99,+i.qty|0))}}).filter(Boolean);
  if(!L.length)throw Object.assign(new Error('Your cart is empty or the items are unavailable'),{code:400});
  for(const l of L)if(!l.p.available||(l.p.stock!=null&&l.p.stock<l.qty))throw Object.assign(new Error(l.p.available&&l.p.stock>0?`Only ${l.p.stock} plate(s) of ${l.p.name} left`:`Sorry, ${l.p.name} is sold out`),{code:400});
- const type=o.type=='takeaway'?'takeaway':'dine_in',plates=L.filter(l=>l.p.pack).reduce((s,l)=>s+l.qty,0),pack=type=='takeaway'?(+(await cfg()).packing||0)*plates:0,total=L.reduce((s,l)=>s+l.p.eff_price*l.qty,0)+pack,paid=!!o.pay&&PM.includes(o.method),c=await db.connect();
+ const type=o.type=='takeaway'?'takeaway':'dine_in',plates=L.filter(l=>l.p.pack).reduce((s,l)=>s+l.qty,0),C=await cfg(),pack=type=='takeaway'?(+C.packing||0)*plates:0,mf=['mtn','airtel'].includes(o.method)?(+C.momo_fee||0):0,total=L.reduce((s,l)=>s+l.p.eff_price*l.qty,0)+pack+mf,paid=!!o.pay&&PM.includes(o.method),c=await db.connect();
  try{await c.query('begin');
-  const{rows:[x]}=await c.query(`insert into orders(customer,phone,table_no,total,status,method,paid_at,user_id,customer_id,source,pay_pref,pay_ref,order_type,packing) values($1,$2,$3,$4,$5,$6,${paid?'now()':'null'},$7,$8,$9,$10,$11,$12,$13) returning *`,[(o.customer||'').trim()||'Walk-in',o.phone||'',(o.table||'').trim(),total,paid?'paid':'open',paid?o.method:null,o.user_id||null,o.customer_id||null,o.source||'pos',paid?null:(o.method||null),'',type,pack]);
+  const{rows:[x]}=await c.query(`insert into orders(customer,phone,table_no,total,status,method,paid_at,user_id,customer_id,source,pay_pref,pay_ref,order_type,packing,momo_fee) values($1,$2,$3,$4,$5,$6,${paid?'now()':'null'},$7,$8,$9,$10,$11,$12,$13,$14) returning *`,[(o.customer||'').trim()||'Walk-in',o.phone||'',(o.table||'').trim(),total,paid?'paid':'open',paid?o.method:null,o.user_id||null,o.customer_id||null,o.source||'pos',paid?null:(o.method||null),'',type,pack,mf]);
   for(const l of L){const u=await c.query('update products set stock=stock-$1 where id=$2 and available and (stock is null or stock>=$1) returning id',[l.qty,l.p.id]);
    if(!u.rowCount)throw Object.assign(new Error(`Sorry, ${l.p.name} just ran out`),{code:400});
    await c.query('insert into order_items(order_id,product_id,name,price,qty) values($1,$2,$3,$4,$5)',[x.id,l.p.id,l.p.name,l.p.eff_price,l.qty])}
@@ -72,7 +72,8 @@ app.post('/api/orders',auth(),W(async(q,r)=>r.json(await makeOrder({...q.body,pa
 app.get('/api/orders',auth(),W(async(q,r)=>{const s=q.query.status;
  r.json((await db.query(`select o.*,u.name as cashier,(select json_agg(json_build_object('name',i.name,'price',i.price,'qty',i.qty)) from order_items i where i.order_id=o.id) as items from orders o left join users u on u.id=o.user_id ${s?'where o.status=$1':''} order by o.id desc limit 100`,s?[s]:[])).rows)}));
 app.post('/api/orders/:id/pay',auth(),W(async(q,r)=>{if(!PM.includes(q.body.method))return r.status(400).json({error:'Choose a payment method'});
- const{rows:[o]}=await db.query("update orders set status='paid',method=$1,paid_at=now() where id=$2 and status='open' returning *",[q.body.method,q.params.id]);
+ const f=['mtn','airtel'].includes(q.body.method)?(+(await cfg()).momo_fee||0):0;
+ const{rows:[o]}=await db.query("update orders set status='paid',method=$1,paid_at=now(),total=total-coalesce(momo_fee,0)+$3::int,momo_fee=$3::int where id=$2 and status='open' returning *",[q.body.method,q.params.id,f]);
  o?r.json(o):r.status(409).json({error:'Order is not open'})}));
 
 const STAGES=['received','preparing','ready','delivering','done'];
@@ -82,7 +83,7 @@ app.post('/api/orders/:id/cancel',auth(),W(async(q,r)=>{const u=await db.query("
 
 /* customers */
 const ph=s=>String(s||'').replace(/[^\d+]/g,'');
-app.get('/order',(q,r)=>r.sendFile(path.join(__dirname,'public','order.html')));
+app.get('/order',(q,r)=>r.redirect('/'));app.get('/staff',(q,r)=>r.sendFile(path.join(__dirname,'public','staff.html')));
 app.post('/api/c/register',W(async(q,r)=>{const{name,password}=q.body,phone=ph(q.body.phone);
  if(!name||phone.length<9||(password||'').length<6)return r.status(400).json({error:'Enter your name, a valid phone number and a password of 6+ characters'});
  try{const{rows:[u]}=await db.query('insert into customers(name,phone,password_hash) values($1,$2,$3) returning id,name,phone,avatar_id',[name.trim(),phone,bcrypt.hashSync(password,10)]);r.json({token:sign({id:u.id,role:'customer'}),user:u})}
@@ -104,10 +105,10 @@ app.delete('/api/offers/:id',auth('admin'),W(async(q,r)=>{await db.query('delete
 app.get('/api/push/key',auth(),(q,r)=>r.json({key:VAPID_PUB}));
 app.post('/api/push/subscribe',auth(),W(async(q,r)=>{const s=q.body;if(!s||!s.endpoint||!s.keys)return r.status(400).json({error:'Bad subscription'});
  await db.query('insert into push_subs(user_id,endpoint,p256dh,auth) values($1,$2,$3,$4) on conflict(endpoint) do update set user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth',[q.user.id,s.endpoint,s.keys.p256dh,s.keys.auth]);r.json({ok:1})}));
-app.post('/api/push/test',auth(),W(async(q,r)=>{await pushAll({title:'Order alerts are on',body:'You will be alerted when a customer orders.',tag:'test',url:'/'});r.json({ok:1})}));
+app.post('/api/push/test',auth(),W(async(q,r)=>{await pushAll({title:'Order alerts are on',body:'You will be alerted when a customer orders.',tag:'test',url:'/staff'});r.json({ok:1})}));
 const mani=(id,start,name)=>({id,name,short_name:name.slice(0,12),start_url:start,scope:'/',display:'standalone',orientation:'portrait',background_color:'#ffffff',theme_color:'#ff6a13',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any'},{src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'maskable'}]});
-app.get('/manifest.json',W(async(q,r)=>r.type('application/manifest+json').send(JSON.stringify(mani('/pos-app','/',(await cfg()).name+' POS')))));
-app.get('/order.webmanifest',W(async(q,r)=>r.type('application/manifest+json').send(JSON.stringify(mani('/order-app','/order',(await cfg()).name)))));
+app.get('/manifest.json',W(async(q,r)=>r.type('application/manifest+json').send(JSON.stringify(mani('/pos-app','/staff',(await cfg()).name+' POS')))));
+app.get('/order.webmanifest',W(async(q,r)=>r.type('application/manifest+json').send(JSON.stringify(mani('/order-app','/',(await cfg()).name)))));
 
 /* reports + staff */
 app.get('/api/reports',auth('admin'),W(async(q,r)=>{const t=`status='paid' and ${PD}=${K}`;
@@ -124,11 +125,12 @@ app.post('/api/users',auth('admin'),W(async(q,r)=>{const{name,email,password,rol
 app.delete('/api/users/:id',auth('admin'),W(async(q,r)=>{if(+q.params.id===q.user.id)return r.status(400).json({error:'You cannot remove yourself'});await db.query('delete from users where id=$1',[q.params.id]);r.json({ok:1})}));
 
 (async()=>{await db.query(fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8'));
- for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',logo:'',hide_soldout:'0'}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
+ for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',momo_fee:'1000',logo:'',hide_soldout:'0'}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
  if(!(await db.query('select 1 from users limit 1')).rows.length)await db.query("insert into users(name,email,password_hash,role) values('Admin',$1,$2,'admin')",[process.env.ADMIN_EMAIL||'admin@hometaste.local',bcrypt.hashSync(process.env.ADMIN_PASSWORD||'ChangeMe123',10)]);
  if(!(await db.query('select 1 from products limit 1')).rows.length)for(const[n,c,p]of[['Chicken & Chips','Meals',18000],['Beef Stew & Rice','Meals',12000],['Pilau','Meals',12000],['Matooke & G-nut Sauce','Meals',10000],['Burger','Fast Food',15000],['Chicken Wings','Fast Food',15000],['Rolex','Fast Food',3000],['Chips','Sides',5000],['Chapati','Sides',1000],['Fresh Juice','Drinks',4000],['Soda','Drinks',2000],['Tea','Drinks',2000]])await db.query('insert into products(name,category,price) values($1,$2,$3)',[n,c,p]);
  await db.query('insert into categories(name) select distinct category from products on conflict do nothing');
  let VK=await cfg();if(!VK.vapid_pub){const k=webpush.generateVAPIDKeys();await db.query("insert into settings(key,value) values('vapid_pub',$1),('vapid_priv',$2) on conflict(key) do nothing",[k.publicKey,k.privateKey]);VK=await cfg()}
  VAPID_PUB=VK.vapid_pub;webpush.setVapidDetails('mailto:'+(process.env.ADMIN_EMAIL||'admin@hometaste.example.com'),VK.vapid_pub,VK.vapid_priv);
+ if(!VK.pack_migrated2){await db.query("update products set pack=false where name ~* '\\y(sodas?|juices?|teas?|waters?)\\y'");await db.query("insert into settings(key,value) values('pack_migrated2','1') on conflict(key) do nothing")}
  if(!VK.pack_migrated){await db.query("update products set pack=false where name ~* 'soda|juice|water'");await db.query("insert into settings(key,value) values('pack_migrated','1') on conflict(key) do nothing")}
  app.listen(process.env.PORT||3000,()=>console.log('POS running'))})().catch(e=>{console.error(e);process.exit(1)});

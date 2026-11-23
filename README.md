@@ -10,7 +10,7 @@
 - **Menu**: categories (add / remove / photo) and items (photo, price, category).
 - **My profile**: photo, name, password (staff and customers).
 
-Customers order at `/order`. Staff: new online orders pulse on the Orders page with a sound.
+Customers use the home page `/`; staff sign in at `/staff` (a small link under the customer login). Staff: new online orders pulse on the Orders page with a sound.
 
 ## 48mm thermal printer
 Print dialog: choose the thermal printer, paper 48mm, Margins None, Scale 100%, Headers/footers off.
@@ -26,8 +26,16 @@ Print dialog: choose the thermal printer, paper 48mm, Margins None, Scale 100%, 
 4. iPhone: first add the app to the Home Screen (Share > Add to Home Screen), then enable alerts.
 
 ## Install as an app
-Both the staff app (`/`) and the customer app (`/order`) can be installed: tap **Install app** in the menu, or use the browser's Add to Home screen.
+Both the staff app (`/staff`) and the customer app (`/`) can be installed: tap **Install app** in the menu, or use the browser's Add to Home screen.
 
 ## Special offers and packing
 - **Special offers** (admin): pick a dish, a discount %, optional dates and weekdays. Prices update everywhere automatically.
 - **Menu**: each dish has a "Charge packing fee" switch. Soda, juice and water are switched off automatically.
+
+## Mobile money fee and packing
+- Payments by MTN or Airtel add a fee per order (default UGX 1,000, change it in Settings) to cover withdrawal charges. Cash has no fee.
+- Soda, juice, tea and water have no packing fee (you can switch this per dish in Menu).
+
+## Fees
+- **Mobile Money fee** (Settings): UGX 1000 per order paid by MTN or Airtel, to cover withdrawal charges.
+- Packing is not charged on soda, juice, tea or water.

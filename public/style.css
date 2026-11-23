@@ -114,3 +114,6 @@ main{padding:16px 14px 110px}.wrap{padding:14px 14px 110px}.cart{width:100%}.cba
 #rcpt h2{font:bold 13px "Courier New",monospace;margin:3px 0}#rcpt .c{text-align:center}#rcpt .ln{display:flex;justify-content:space-between}#rcpt .b{font-size:13px}#rcpt hr{border:0;border-top:1px dashed #000;margin:5px 0}#rcpt .logo{height:auto;max-width:26mm;filter:grayscale(1) contrast(3)}
 @page{size:48mm auto;margin:0}
 @media print{html,body{width:48mm;background:#fff}body>*:not(#rcpt){display:none!important}#rcpt{display:block!important;padding:2mm}}
+.pb small{color:inherit;opacity:.85;font-weight:600;font-size:11px}.pc small{font-size:11px}
+
+.stafflink{text-align:center;padding-top:12px;border-top:1px solid var(--line)}.stafflink a{color:var(--mut);font-weight:500;font-size:12px}

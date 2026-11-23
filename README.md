@@ -45,3 +45,10 @@ Reports page (admin): pick dates and tap **Download Excel report**. The file has
 
 ## Logo and icons
 The default logo and app icons come from `public/logo-full.png`, `public/logo-mark.png`, `public/icon-192.png`, `public/icon-512.png` and `public/favicon.ico`. A logo uploaded under Settings overrides the in-app logo.
+
+## Pickup, delivery and contact
+- **Take away** now asks for **Self pickup** or **Delivery**. Delivery adds the delivery fee (Settings, default UGX 2000) and needs an address; staff see the customer phone, address and instructions on the order, with **Copy for rider** and **Send to rider** (WhatsApp) buttons.
+- Rolex is not charged packing (already included). Soda, juice, tea and water are also free of packing.
+- **Contact us** page for customers: call, WhatsApp, email, Facebook, Instagram, map and a built-in **live chat**. Staff reply under **Messages** and get a phone alert for new messages.
+- Set the email, WhatsApp number, social links and the year started in **Settings**. They appear in the footer on every customer page.
+- The Excel report's **Orders** sheet now lists the items ordered, delivery details and fees; **Items sold** includes customer name and phone.

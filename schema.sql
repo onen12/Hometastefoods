@@ -24,3 +24,14 @@ alter table products add column if not exists pack boolean not null default true
 create table if not exists offers(id serial primary key,product_id integer not null references products(id) on delete cascade,title text not null default 'Special offer',percent integer not null,start_date date,end_date date,weekdays text default '',active boolean not null default true);
 create table if not exists push_subs(id serial primary key,user_id integer references users(id) on delete cascade,endpoint text unique not null,p256dh text not null,auth text not null);
 alter table orders add column if not exists momo_fee integer default 0;
+alter table orders add column if not exists fulfil text default 'pickup';
+alter table orders add column if not exists delivery_fee integer default 0;
+alter table orders add column if not exists address text default '';
+alter table orders add column if not exists instructions text default '';
+create table if not exists chat_messages(id serial primary key,customer_id integer not null references customers(id) on delete cascade,sender text not null,staff_id integer references users(id) on delete set null,body text not null,read boolean not null default false,created_at timestamptz default now());
+create index if not exists chat_cust_idx on chat_messages(customer_id,id);
+alter table users add column if not exists phone text default '';
+alter table orders add column if not exists rider_id integer references users(id) on delete set null;
+alter table orders add column if not exists rider_cash integer default 0;
+alter table orders add column if not exists cash_settled boolean not null default false;
+alter table orders add column if not exists delivered_at timestamptz;

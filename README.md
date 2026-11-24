@@ -52,3 +52,15 @@ The default logo and app icons come from `public/logo-full.png`, `public/logo-ma
 - **Contact us** page for customers: call, WhatsApp, email, Facebook, Instagram, map and a built-in **live chat**. Staff reply under **Messages** and get a phone alert for new messages.
 - Set the email, WhatsApp number, social links and the year started in **Settings**. They appear in the footer on every customer page.
 - The Excel report's **Orders** sheet now lists the items ordered, delivery details and fees; **Items sold** includes customer name and phone.
+
+## Riders
+- **Riders** page (admin): register riders (name, phone, login email, password). Riders sign in at `/staff` and only see their own dashboard.
+- On a delivery order, staff pick a rider and tap **Assign**; the rider gets a phone alert.
+- The rider sees the customer's phone, address, instructions and a map link, taps **Pick up**, then **Delivered and cash collected** (cash orders). Cash is tracked per rider.
+- When a rider hands over the money, the admin taps **I received ...** on the Riders page to settle it. The Excel report shows the rider and cash collected on each order.
+- Customers see their rider's name and a call button while the order is on the way.
+
+## Waitress role and saved carts
+- **Staff page**: add a staff member with the role **Waitress**. Waitresses see only **New order** (dine-in only) and **Orders** (accept orders, move them along, assign riders, record payment). They cannot cancel orders or open Menu, Reports, Settings, Staff, Customers, Riders or Messages. They still get new-order alerts.
+- Carts are saved on the device, so refreshing the page no longer empties the cart (customers and staff).
+- The menu has no "All" tab: customers see one category at a time, and searching looks across every category.

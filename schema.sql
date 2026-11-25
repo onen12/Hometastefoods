@@ -35,3 +35,6 @@ alter table orders add column if not exists rider_id integer references users(id
 alter table orders add column if not exists rider_cash integer default 0;
 alter table orders add column if not exists cash_settled boolean not null default false;
 alter table orders add column if not exists delivered_at timestamptz;
+alter table products add column if not exists local boolean not null default false;
+alter table order_items add column if not exists sides text default '';
+alter table categories add column if not exists pack_fee integer;

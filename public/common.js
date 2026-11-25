@@ -51,10 +51,21 @@ function confetti(){const c=['#ff6a13','#ffb067','#12a150','#17120f','#ffd23f','
 
 const b64=k=>{const w=atob((k+'='.repeat((4-k.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...w].map(c=>c.charCodeAt(0)))};
 let DIP;addEventListener('beforeinstallprompt',e=>{e.preventDefault();DIP=e});
-const MS={p:null,q:1},msMax=p=>p.stock==null?99:Math.max(0,p.stock-(S.cart[p.id]||0));
-function sheet(){const p=MS.p;if(!p){$('#modal').innerHTML='';return}const o=p.offer_percent>0;$('#modal').innerHTML=`<div class=mo><div class=mbg data-a=mclose></div><div class=ms><button class="ib x" data-a=mclose>${ic('x',22)}</button>${pic(p.image_id)}<div class=mb><div><h3>${esc(p.name)}</h3><div class=mp>${fmt(ep(p))}${o?` <s>${fmt(p.price)}</s> <span class=offtag2>-${p.offer_percent}%</span>`:''}</div>${p.stock!=null?`<small>${p.stock} plate${p.stock>1?'s':''} left</small>`:''}</div><div class=mq><span>How many plates?</span><div class=qs><button data-a=mq data-v=-1>${ic('minus',18)}</button><b>${MS.q}</b><button data-a=mq data-v=1>${ic('plus',18)}</button></div></div><button class="btn big" data-a=madd>${ic('bag',20)} Add to cart · ${fmt(ep(p)*MS.q)}</button><button class=lnk data-a=mclose style="text-align:center">Not now</button></div></div></div>`}
-Object.assign(A,{item:v=>{const p=S.prods.find(x=>x.id==v);if(!p||msMax(p)<1)return toast('All available plates are already in your cart');MS.p=p;MS.q=1;sheet();document.body.classList.add('mlock')},
-mq:v=>{MS.q=Math.min(msMax(MS.p),Math.max(1,MS.q+ +v));sheet()},madd:()=>{addToCart(MS.p.id,MS.q);A.mclose()},mclose:()=>{MS.p=null;sheet();document.body.classList.remove('mlock')},
+const MS={p:null,q:1,sel:[]},msMax=p=>p.stock==null?99:Math.max(0,p.stock-inCart(p.id));
+const ck=(id,sides)=>sides&&sides.length?id+'~'+sides.map(encodeURIComponent).join(','):String(id);
+const cpid=k=>+String(k).split('~')[0],csides=k=>{const s=String(k).split('~')[1];return s?s.split(',').map(decodeURIComponent):[]};
+const inCart=pid=>Object.entries(S.cart).reduce((t,[k,q])=>cpid(k)==pid?t+q:t,0);
+const sidesList=()=>String(S.cfg.sides||'').split(',').map(x=>x.trim()).filter(Boolean),needSides=p=>!!p.local&&sidesList().length>0;
+const pf=p=>p.cat_pack_fee!=null?+p.cat_pack_fee:(+S.cfg.packing||0);
+const cartLines=()=>Object.entries(S.cart).map(([k,q])=>({k,q,p:S.prods.find(x=>x.id==cpid(k)),sides:csides(k)})).filter(x=>x.p);
+const cartItems=()=>Object.entries(S.cart).map(([k,qty])=>({id:cpid(k),qty,sides:csides(k)}));
+const feeL=L=>S.type=='takeaway'?L.filter(x=>x.p.pack).reduce((s,x)=>s+x.q*pf(x.p),0):0;
+
+function sheet(){const p=MS.p;if(!p){$('#modal').innerHTML='';return}const o=p.offer_percent>0,ns=needSides(p),sl=ns?sidesList().concat(['Sauce only']):[],need=ns&&!MS.sel.length;
+$('#modal').innerHTML=`<div class=mo><div class=mbg data-a=mclose></div><div class=ms><button class="ib x" data-a=mclose>${ic('x',22)}</button>${pic(p.image_id)}<div class=mb><div><h3>${esc(p.name)}</h3><div class=mp>${fmt(ep(p))}${o?` <s>${fmt(p.price)}</s> <span class=offtag2>-${p.offer_percent}%</span>`:''}</div>${p.stock!=null?`<small>${p.stock} plate${p.stock>1?'s':''} left</small>`:''}</div>${ns?`<div><h4>Choose your sides</h4><div class=chk>${sl.map((s,i)=>`<button class="ck ${MS.sel.includes(s)?'on':''}" data-a=msd data-v=${i}><span class=bx>${MS.sel.includes(s)?ic('check',14):''}</span>${esc(s)}</button>`).join('')}</div><small>Served alongside your ${esc(p.name)}. Pick one or more.</small></div>`:''}<div class=mq><span>How many plates?</span><div class=qs><button data-a=mq data-v=-1>${ic('minus',18)}</button><b>${MS.q}</b><button data-a=mq data-v=1>${ic('plus',18)}</button></div></div><button class="btn big" data-a=madd ${need?'disabled':''}>${ic('bag',20)} ${need?'Choose a side to continue':'Add to cart · '+fmt(ep(p)*MS.q)}</button><button class=lnk data-a=mclose style="text-align:center">Not now</button></div></div></div>`}
+Object.assign(A,{item:v=>{const p=S.prods.find(x=>x.id==v);if(!p||msMax(p)<1)return toast('All available plates are already in your cart');MS.p=p;MS.q=1;MS.sel=[];sheet();document.body.classList.add('mlock')},
+msd:v=>{const sl=sidesList().concat(['Sauce only']),x=sl[+v];if(x=='Sauce only')MS.sel=MS.sel.includes(x)?[]:[x];else MS.sel=(MS.sel.includes(x)?MS.sel.filter(y=>y!=x):[...MS.sel.filter(y=>y!='Sauce only'),x]);MS.sel=sl.filter(y=>MS.sel.includes(y));sheet()},
+mq:v=>{MS.q=Math.min(msMax(MS.p),Math.max(1,MS.q+ +v));sheet()},madd:()=>{if(needSides(MS.p)&&!MS.sel.length)return toast('Please choose your sides');addToCart(ck(MS.p.id,needSides(MS.p)?MS.sel:[]),MS.q);A.mclose()},mclose:()=>{MS.p=null;sheet();document.body.classList.remove('mlock')},
 install:()=>{if(DIP){DIP.prompt();DIP=null}else toast('To install: open your browser menu and tap Add to Home screen (iPhone: Share, then Add to Home Screen).')}});
 document.body.insertAdjacentHTML('beforeend','<div id=modal></div>');
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});

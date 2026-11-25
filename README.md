@@ -64,3 +64,9 @@ The default logo and app icons come from `public/logo-full.png`, `public/logo-ma
 - **Staff page**: add a staff member with the role **Waitress**. Waitresses see only **New order** (dine-in only) and **Orders** (accept orders, move them along, assign riders, record payment). They cannot cancel orders or open Menu, Reports, Settings, Staff, Customers, Riders or Messages. They still get new-order alerts.
 - Carts are saved on the device, so refreshing the page no longer empties the cart (customers and staff).
 - The menu has no "All" tab: customers see one category at a time, and searching looks across every category.
+
+## Local foods with sides, and side-dish packing
+- **Menu** (admin): switch **Served with sides (local food)** on for each sauce or local dish. Dishes in categories whose name contains "local" are switched on automatically.
+- **Settings**: the list of sides is editable (default Rice, Posho, Matooke, Pumpkin). Customers and staff tick one or more sides, or "Sauce only". Different plates can have different sides: add the dish again with other sides.
+- Sides appear on the cart, order cards, rider screen, receipt and the Excel report.
+- **Packing per category**: each category has a **Packing fee** box on the Menu page (blank uses the default UGX 1000). Categories with "side" in the name were set to UGX 500 automatically.

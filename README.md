@@ -70,3 +70,12 @@ The default logo and app icons come from `public/logo-full.png`, `public/logo-ma
 - **Settings**: the list of sides is editable (default Rice, Posho, Matooke, Pumpkin). Customers and staff tick one or more sides, or "Sauce only". Different plates can have different sides: add the dish again with other sides.
 - Sides appear on the cart, order cards, rider screen, receipt and the Excel report.
 - **Packing per category**: each category has a **Packing fee** box on the Menu page (blank uses the default UGX 1000). Categories with "side" in the name were set to UGX 500 automatically.
+
+## Delivery location (map pin)
+- At checkout, **Delivery** now shows a map: tap **Use my current location**, search an area or landmark, or tap/drag the pin. The address is filled in from the pin and can still be edited.
+- Staff and riders see **Open pin in Google Maps** / **Navigate** on delivery orders, and the Excel report has a **Map link** column.
+- By default the picker uses OpenStreetMap (free, no key). To use Google Maps instead, create a Google Maps API key (Maps JavaScript API + Geocoding API, restricted to your website) and paste it in **Settings > Google Maps API key**.
+
+## Customer layout
+- Bottom menu on phones and tablets: Home, My orders, Profile and Cart (lower right). Contact us is the chat icon at the top and on the Profile page.
+- The menu shows 6 categories with **View more**. The customer footer was removed.

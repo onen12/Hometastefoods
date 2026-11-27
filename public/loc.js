@@ -16,3 +16,18 @@ function locSet(lat,lng){if(!LOC.map)return;if(LOC.g){LOC.mk.setPosition({lat,ln
 const locAddr=async(lat,lng)=>{try{if(LOC.g){const r=await new google.maps.Geocoder().geocode({location:{lat,lng}});return r.results&&r.results[0]?r.results[0].formatted_address:''}const j=await(await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&lat='+lat+'&lon='+lng)).json();return(j.display_name||'').split(',').slice(0,4).join(',').trim()}catch{return''}};
 const locFind=async q=>{try{if(LOC.g){const r=await new google.maps.Geocoder().geocode({address:q+', Uganda'}),l=r.results&&r.results[0]&&r.results[0].geometry.location;return l?{lat:l.lat(),lng:l.lng()}:null}const j=await(await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ug&q='+encodeURIComponent(q))).json();return j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null}catch{return null}};
 const locGps=()=>new Promise((res,rej)=>{if(!navigator.geolocation)return rej(new Error('Your device does not support location'));navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),e=>rej(new Error(e.code==1?'Location is blocked. Allow location access in your browser settings, or tap the map to drop a pin.':'Could not get your location. Tap the map to drop a pin.')),{enableHighAccuracy:true,timeout:15000,maximumAge:30000})});
+/* live tracking map (customer pin + rider + trail) */
+async function trackMapInit(el){await locLib();
+ if(LOC.g){const m=new google.maps.Map(el,{center:KLA,zoom:13,disableDefaultUI:true,zoomControl:true,gestureHandling:'greedy'});let c=null,rd=null,pl=null,fit=false;
+  return{refit(){fit=false},update(client,rider,trail){const b=new google.maps.LatLngBounds();
+   if(client){if(!c)c=new google.maps.Marker({map:m,position:client,label:'C',title:'Customer'});c.setPosition(client);b.extend(client)}
+   if(rider){if(!rd)rd=new google.maps.Marker({map:m,position:rider,label:'R',title:'Rider',zIndex:9});rd.setPosition(rider);b.extend(rider)}
+   if(trail&&trail.length>1){const path=trail.map(p=>({lat:p[0],lng:p[1]}));if(!pl)pl=new google.maps.Polyline({map:m,path,strokeColor:'#ff6a13',strokeWeight:4});else pl.setPath(path)}
+   if(!b.isEmpty()&&!fit){m.fitBounds(b,40);fit=true}}}}
+ const m=L.map(el).setView([KLA.lat,KLA.lng],13);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
+ let c=null,rd=null,pl=null,fit=false;const mk=(cls,t)=>L.divIcon({className:'',html:'<div class="mk '+cls+'">'+t+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+ return{refit(){fit=false},update(client,rider,trail){const pts=[];
+  if(client){if(!c)c=L.marker([client.lat,client.lng],{icon:mk('mc','C')}).addTo(m);else c.setLatLng([client.lat,client.lng]);pts.push([client.lat,client.lng])}
+  if(rider){if(!rd)rd=L.marker([rider.lat,rider.lng],{icon:mk('mr','R'),zIndexOffset:500}).addTo(m);else rd.setLatLng([rider.lat,rider.lng]);pts.push([rider.lat,rider.lng])}
+  if(trail&&trail.length>1){if(!pl)pl=L.polyline(trail,{color:'#ff6a13',weight:4}).addTo(m);else pl.setLatLngs(trail)}
+  if(pts.length&&!fit){m.invalidateSize();m.fitBounds(pts,{padding:[40,40],maxZoom:17});fit=true}}}}

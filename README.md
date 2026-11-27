@@ -79,3 +79,9 @@ The default logo and app icons come from `public/logo-full.png`, `public/logo-ma
 ## Customer layout
 - Bottom menu on phones and tablets: Home, My orders, Profile and Cart (lower right). Contact us is the chat icon at the top and on the Profile page.
 - The menu shows 6 categories with **View more**. The customer footer was removed.
+
+## Options (scoops, sugar), availability groups, popular strip, live rider tracking
+- **Menu > each dish > Options**: set a label (e.g. Scoops, Spoons of sugar), smallest and largest number, starting number, how many are included free and the price per extra unit. Presets for ice cream and tea fill it in. Ice cream and tea dishes were set up automatically with no extra charge; set a price per extra scoop if you want one.
+- **Availability** is grouped by category: turn a whole category on or off, or tick several dishes and use Turn off / Turn on selected. Waitresses and cashiers can use Availability too.
+- The customer menu has a **Popular right now** strip (most ordered in the last 30 days) that scrolls sideways.
+- **Live rider tracking**: when a rider taps Pick up and start delivery, their phone shares its location every few seconds while the app is open. Staff tap **Track** on the order to see the customer pin, the rider and the route so far, with distance and an estimated arrival. Riders should keep the app open and allow location.

@@ -85,3 +85,10 @@ The default logo and app icons come from `public/logo-full.png`, `public/logo-ma
 - **Availability** is grouped by category: turn a whole category on or off, or tick several dishes and use Turn off / Turn on selected. Waitresses and cashiers can use Availability too.
 - The customer menu has a **Popular right now** strip (most ordered in the last 30 days) that scrolls sideways.
 - **Live rider tracking**: when a rider taps Pick up and start delivery, their phone shares its location every few seconds while the app is open. Staff tap **Track** on the order to see the customer pin, the rider and the route so far, with distance and an estimated arrival. Riders should keep the app open and allow location.
+
+## Going live, order cleanup and passwords
+- **Test mode**: until you go live, staff see a yellow TEST MODE bar. In **Settings > Go live** (admin) type DELETE to clear all practice orders and restart order numbers at 1. You can also clear chat messages, test customer accounts and plate counts. Menu, categories, staff, riders and settings are kept.
+- **Orders**: Cancel (any order that is not cancelled yet; stock is returned) for admin and cashier. **Delete** (admin only) removes an order permanently. A Cancelled tab lists cancelled orders.
+- **Passwords**: admin can reset a customer's password on the Customers page, and a staff member's or rider's password on the Staff and Riders pages. Pick a new one or tap Generate, then tell the person.
+- **Call links**: phone numbers in any format (0750..., +256..., with spaces) open the phone dialer, and each call card has a Copy button for browsers that cannot dial.
+- **Availability** groups are collapsed; tap a group to open it (one at a time).

@@ -86,7 +86,7 @@ app.post('/api/orders/:id/pay',auth(),W(async(q,r)=>{if(!PM.includes(q.body.meth
 const STAGES=['received','preparing','ready','delivering','done'];
 app.post('/api/orders/:id/stage',auth(),W(async(q,r)=>{if(!STAGES.includes(q.body.stage))return r.status(400).json({error:'Unknown stage'});r.json((await db.query("update orders set stage=$1,picked_at=case when $1='delivering' and picked_at is null then now() else picked_at end where id=$2 and status<>'cancelled' returning *",[q.body.stage,q.params.id])).rows[0]||{})}));
 app.put('/api/products/:id/stock',auth(),W(async(q,r)=>{const s=q.body.stock===''||q.body.stock==null?null:Math.max(0,Math.round(+q.body.stock));r.json((await db.query('update products set available=$1,stock=$2 where id=$3 returning *',[q.body.available!==false,s,q.params.id])).rows[0])}));
-app.post('/api/orders/:id/cancel',auth('nowaiter'),W(async(q,r)=>{const u=await db.query("update orders set status='cancelled' where id=$1 and status='open' returning id",[q.params.id]);if(u.rowCount)await db.query('update products p set stock=p.stock+i.qty from order_items i where i.order_id=$1 and i.product_id=p.id and p.stock is not null',[q.params.id]);r.json({ok:1})}));
+app.post('/api/orders/:id/cancel',auth('nowaiter'),W(async(q,r)=>{const u=await db.query("update orders set status='cancelled' where id=$1 and status in ('open','paid') returning id",[q.params.id]);if(u.rowCount)await db.query('update products p set stock=p.stock+i.qty from order_items i where i.order_id=$1 and i.product_id=p.id and p.stock is not null',[q.params.id]);r.json({ok:1})}));
 
 /* customers */
 const ph=s=>String(s||'').replace(/[^\d+]/g,'');
@@ -156,6 +156,19 @@ app.get('/api/orders/:id/track',auth(),W(async(q,r)=>{const o=(await db.query("s
 app.put('/api/stock/bulk',auth(),W(async(q,r)=>{const ids=(Array.isArray(q.body.ids)?q.body.ids:[]).map(Number).filter(Number.isInteger);if(!ids.length)return r.status(400).json({error:'Choose at least one item'});
  await db.query('update products set available=$1 where id=any($2)',[q.body.available!==false,ids]);r.json({ok:ids.length})}));
 
+/* production mode, order delete, password resets */
+app.get('/api/admin/counts',auth('admin'),W(async(q,r)=>{const c=async t=>(await db.query(`select count(*)::int as n from ${t}`)).rows[0].n;r.json({orders:await c('orders'),customers:await c('customers'),messages:await c('chat_messages'),live:(await cfg()).live=='1'})}));
+app.post('/api/admin/reset',auth('admin'),W(async(q,r)=>{if(q.body.confirm!=='DELETE')return r.status(400).json({error:'Type DELETE to confirm'});const c=await db.connect();
+ try{await c.query('begin');await c.query('truncate orders restart identity cascade');await c.query('truncate rider_track,rider_locations');
+  if(q.body.chats!==false)await c.query('delete from chat_messages');if(q.body.customers)await c.query('delete from customers');if(q.body.plates)await c.query('update products set stock=null');
+  await c.query("insert into settings(key,value) values('live','1') on conflict(key) do update set value='1'");await c.query('commit');r.json({ok:1})}
+ catch(e){await c.query('rollback');throw e}finally{c.release()}}));
+app.delete('/api/orders/:id',auth('admin'),W(async(q,r)=>{const o=(await db.query('select status from orders where id=$1',[q.params.id])).rows[0];if(!o)return r.status(404).json({error:'Order not found'});
+ if(o.status!='cancelled')await db.query('update products p set stock=p.stock+i.qty from order_items i where i.order_id=$1 and i.product_id=p.id and p.stock is not null',[q.params.id]);
+ await db.query('delete from orders where id=$1',[q.params.id]);r.json({ok:1})}));
+app.post('/api/customers/:id/password',auth('admin'),W(async(q,r)=>{const p=String(q.body.password||'');if(p.length<6)return r.status(400).json({error:'Password must be 6 or more characters'});await db.query('update customers set password_hash=$1 where id=$2',[bcrypt.hashSync(p,10),q.params.id]);r.json({ok:1})}));
+app.post('/api/users/:id/password',auth('admin'),W(async(q,r)=>{const p=String(q.body.password||'');if(p.length<8)return r.status(400).json({error:'Password must be 8 or more characters'});await db.query('update users set password_hash=$1 where id=$2',[bcrypt.hashSync(p,10),q.params.id]);r.json({ok:1})}));
+
 /* live chat + customers */
 app.get('/api/c/chat',auth('customer'),W(async(q,r)=>r.json((await db.query('select id,sender,body,created_at from chat_messages where customer_id=$1 order by id desc limit 100',[q.user.id])).rows.reverse())));
 app.post('/api/c/chat',auth('customer'),W(async(q,r)=>{const b=String(q.body.body||'').trim().slice(0,1000);if(!b)return r.status(400).json({error:'Type a message first'});
@@ -195,7 +208,7 @@ app.post('/api/users',auth('admin'),W(async(q,r)=>{const{name,email,password,rol
 app.delete('/api/users/:id',auth('admin'),W(async(q,r)=>{if(+q.params.id===q.user.id)return r.status(400).json({error:'You cannot remove yourself'});await db.query('delete from users where id=$1',[q.params.id]);r.json({ok:1})}));
 
 (async()=>{await db.query(fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8'));
- for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',momo_fee:'1000',logo:'',hide_soldout:'0',delivery_fee:'2000',whatsapp:'256750541790',email:'',facebook:'https://www.facebook.com/share/1Cqi3U1LMu/',instagram:'https://www.instagram.com/home.taste.foods?bqrl=dnFjeWthNnprNHRk',founded:'',sides:'Rice,Posho,Matooke,Pumpkin',gmaps:''}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
+ for(const[k,v]of Object.entries({name:'HOME TASTE FOODS',address:'Kansanga Ggabba Road, next to KIU',phones:'0750541790 / 0788507153',mtn:'320155',airtel:'1355266',packing:'1000',momo_fee:'1000',logo:'',hide_soldout:'0',delivery_fee:'2000',whatsapp:'256750541790',email:'',facebook:'https://www.facebook.com/share/1Cqi3U1LMu/',instagram:'https://www.instagram.com/home.taste.foods?bqrl=dnFjeWthNnprNHRk',founded:'',sides:'Rice,Posho,Matooke,Pumpkin',gmaps:'',live:'0'}))await db.query('insert into settings(key,value) values($1,$2) on conflict(key) do nothing',[k,v]);
  if(!(await db.query('select 1 from users limit 1')).rows.length)await db.query("insert into users(name,email,password_hash,role) values('Admin',$1,$2,'admin')",[process.env.ADMIN_EMAIL||'admin@hometaste.local',bcrypt.hashSync(process.env.ADMIN_PASSWORD||'ChangeMe123',10)]);
  if(!(await db.query('select 1 from products limit 1')).rows.length)for(const[n,c,p]of[['Chicken & Chips','Meals',18000],['Beef Stew & Rice','Meals',12000],['Pilau','Meals',12000],['Matooke & G-nut Sauce','Meals',10000],['Burger','Fast Food',15000],['Chicken Wings','Fast Food',15000],['Rolex','Fast Food',3000],['Chips','Sides',5000],['Chapati','Sides',1000],['Fresh Juice','Drinks',4000],['Soda','Drinks',2000],['Tea','Drinks',2000]])await db.query('insert into products(name,category,price) values($1,$2,$3)',[n,c,p]);
  await db.query('insert into categories(name) select distinct category from products on conflict do nothing');

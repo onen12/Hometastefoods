@@ -74,7 +74,7 @@ install:()=>{if(DIP){DIP.prompt();DIP=null}else toast('To install: open your bro
 document.body.insertAdjacentHTML('beforeend','<div id=modal></div>');
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-const waNum=s=>{let d=String(s||'').replace(/\D/g,'');if(d.startsWith('0'))d='256'+d.slice(1);return d};
+const waNum=s=>{let d=String(s||'').replace(/\D/g,'');if(d.startsWith('2560'))d='256'+d.slice(4);else if(!d.startsWith('256')){if(d.startsWith('0'))d='256'+d.slice(1);else if(d.length==9)d='256'+d}return d};
 const phones=s=>String(s||'').split(/[\/,;]/).map(x=>x.trim()).filter(x=>x.replace(/\D/g,'').length>=9);
 const telHref=s=>'tel:+'+waNum(s),waHref=(n,t)=>`https://wa.me/${waNum(n)}${t?'?text='+encodeURIComponent(t):''}`,safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
 const soc=()=>{const c=S.cfg;return`<div class=socb>${safeUrl(c.facebook)?`<a class=fbk href="${esc(c.facebook)}" target=_blank rel=noopener>${ic('facebook',18)}<span>Facebook</span></a>`:''}${safeUrl(c.instagram)?`<a class=igk href="${esc(c.instagram)}" target=_blank rel=noopener>${ic('instagram',18)}<span>Instagram</span></a>`:''}</div>`};
